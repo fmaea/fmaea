@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Shooting Game</title>
+    <style>
+        body {
+            background-color: #000;
+            color: #fff;
+            text-align: center;
+            font-family: Arial, sans-serif;
+        }
+        canvas {
+            background: #000;
+            display: block;
+            margin: auto;
+        }
+        #start, #restart, #clear-scores {
+            margin: 10px;
+            padding: 10px;
+            font-size: 16px;
+        }
+        #gameCanvas {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <h1>Shooting Game</h1>
+    <canvas id="gameCanvas" width="800" height="600"></canvas>
+    <div>
+        <button id="start">Start Game</button>
+        <button id="restart" disabled>Restart</button>
+        <button id="clear-scores">Clear Scores</button>
+    </div>
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        let score = 0;
+        let countdown = 10;
+        let disks = [];
+        let gameInterval;
+        let countdownInterval;
+
+        // 加载资源
+        const enemyImages = []; // 用于存储敌方飞碟的图像
+        const assetsPath = '/assets/依辰';
+
+        // 加载图像资源的函数
+        function loadEnemyImages() {
+            for (let i = 1; i <= 3; i++) {
+                const img = new Image();
+                img.src = `${assetsPath}/enemy${i}.png`; // 假设图像名称为 enemy1.png, enemy2.png, enemy3.png 等
+                img.onload = () => console.log(`Enemy image ${i} loaded successfully.`);
+                img.onerror = () => console.error(`Failed to load enemy image ${i}.`);
+                enemyImages.push(img);
+            }
+        }
+
+        const friendImage = new Image();
+        friendImage.src = '/assets/友军飞碟.png'; // 友军飞碟的图像路径，请确保该路径正确
+        friendImage.onload = () => console.log('Friend image loaded successfully.');
+        friendImage.onerror = () => console.error('Failed to load friend image.');
+
+        const hitSound = new Audio('/assets/挨打声音.mp3'); // 击中飞碟时的音效，请确保该路径正确
+
+        // 确保所有图像加载完成后再初始化游戏
+        function allImagesLoaded(callback) {
+            let loadedImagesCount = 0;
+            const totalImages = enemyImages.length + 1; // 敌方图像加上友军图像
+
+            function imageLoaded() {
+                loadedImagesCount++;
+                if (loadedImagesCount === totalImages) {
+                    callback();
+                }
+            }
+
+            enemyImages.forEach((img) => {
+                if (img.complete) {
+                    imageLoaded();
+                } else {
+                    img.onload = imageLoaded;
+                    img.onerror = () => console.error('Failed to load an enemy image.');
+                }
+            });
+            if (friendImage.complete) {
+                imageLoaded();
+            } else {
+                friendImage.onload = imageLoaded;
+                friendImage.onerror = () => console.error('Failed to load friend image.');
+            }
+        }
+
+        // 定义飞碟类
+        class Disk {
+            constructor(x, y, points, image) {
+                this.x = x; // 飞碟的 x 坐标
+                this.y = y; // 飞碟的 y 坐标
+                this.radius = 32; // 飞碟的半径
+                this.points = points; // 飞碟的分值，友军飞碟为负分
+                this.image = image; // 飞碟的图像
+            }
+
+            // 绘制飞碟
+            draw() {
+                ctx.drawImage(this.image, this.x - this.radius, this.y - this.radius, this.radius * 2, this.radius * 2);
+            }
+
+            // 随机移动飞碟到新的位置
+            move() {
+                this.x = Math.random() * (canvas.width - 100) + 50; // 在画布范围内随机设置新的 x 坐标
+                this.y = Math.random() * (canvas.height - 100) + 50; // 在画布范围内随机设置新的 y 坐标
+            }
+        }
+
+        // 初始化游戏
+        function initGame() {
+            loadEnemyImages(); // 加载敌方飞碟图像
+            allImagesLoaded(() => {
+                disks = []; // 清空飞碟数组
+                for (let i = 0; i < 3; i++) {
+                    const randomImage = enemyImages[Math.floor(Math.random() * enemyImages.length)]; // 随机选择一个敌方飞碟图像
+                    disks.push(new Disk(Math.random() * 700 + 50, Math.random() * 500 + 50, 10, randomImage)); // 添加敌方飞碟
+                }
+                disks.push(new Disk(Math.random() * 700 + 50, Math.random() * 500 + 50, -20, friendImage)); // 添加友军飞碟
+                score = 0; // 初始化分数
+                countdown = 10; // 初始化倒计时时间
+                document.getElementById('restart').disabled = true; // 禁用重开按钮，防止重复点击
+                canvas.style.display = 'block'; // 显示画布
+                gameInterval = setInterval(updateGame, 1000 / 60); // 每 1/60 秒更新游戏画面
+                countdownInterval = setInterval(updateCountdown, 1000); // 每秒更新倒计时
+            });
+        }
+
+        // 更新游戏画面
+        function updateGame() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height); // 清空画布
+
+            for (let disk of disks) {
+                disk.draw(); // 绘制每个飞碟
+            }
+
+            // 绘制分数和倒计时
+            ctx.fillStyle = 'white';
+            ctx.font = '20px Arial';
+            ctx.fillText('Score: ' + score, 10, 20);
+            ctx.fillText('Time Left: ' + countdown + ' seconds', 10, 50);
+        }
+
+        // 更新倒计时
+        function updateCountdown() {
+            countdown--; // 倒计时减 1
+            if (countdown <= 0) {
+                endGame(); // 倒计时结束，游戏结束
+            }
+        }
+
+        // 游戏结束
+        function endGame() {
+            clearInterval(gameInterval); // 清除游戏更新计时器
+            clearInterval(countdownInterval); // 清除倒计时计时器
+            ctx.fillStyle = 'white';
+            ctx.font = '30px Arial';
+            ctx.fillText('Game Over! Your score: ' + score, canvas.width / 2 - 150, canvas.height / 2); // 显示游戏结束和得分
+            document.getElementById('restart').disabled = false; // 启用重开按钮
+        }
+
+        // 处理点击事件
+        canvas.addEventListener('click', (e) => {
+            const rect = canvas.getBoundingClientRect(); // 获取画布的位置
+            const mouseX = e.clientX - rect.left; // 计算鼠标点击的 x 坐标
+            const mouseY = e.clientY - rect.top; // 计算鼠标点击的 y 坐标
+
+            for (let disk of disks) {
+                const dx = mouseX - disk.x; // 计算鼠标与飞碟的水平距离
+                const dy = mouseY - disk.y; // 计算鼠标与飞碟的垂直距离
+                if (Math.sqrt(dx * dx + dy * dy) < disk.radius) { // 判断是否点击到飞碟
+                    score += disk.points; // 根据飞碟类型增加或减少分数
+                    disk.move(); // 飞碟移动到新的随机位置
+                    hitSound.play(); // 播放击中音效
+                }
+            }
+        });
+
+        // 开始游戏按钮的点击事件
+        document.getElementById('start').addEventListener('click', () => {
+            initGame(); // 初始化游戏
+            document.getElementById('start').style.display = 'none'; // 隐藏开始按钮
+        });
+
+        // 重新开始按钮的点击事件
+        document.getElementById('restart').addEventListener('click', () => {
+            initGame(); // 初始化游戏
+        });
+
+        // 清除分数按钮的点击事件
+        document.getElementById('clear-scores').addEventListener('click', () => {
+            alert('Scores cleared! (Feature not yet implemented)'); // 功能尚未实现
+        });
+    </script>
+</body>
+</html>
